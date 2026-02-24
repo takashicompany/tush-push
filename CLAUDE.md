@@ -1,10 +1,12 @@
 # ccpush
 
-Claude Codeの応答完了時にPushover経由でプッシュ通知を送るプラグイン。
+Claude Codeの応答完了時・承認待ち時にPushover経由でプッシュ通知を送るプラグイン。
 
 ## 概要
 
-Claude Codeプラグインとして動作し、`Stop` hookで応答完了時にPushover通知を送信する。通知メッセージには `<フォルダ名> 返答の先頭100文字...` が含まれる。
+Claude Codeプラグインとして動作し、以下の2つのイベントでPushover通知を送信する:
+- **Stop**: 応答完了時に即座に通知。メッセージには返答の先頭100文字が含まれる。
+- **PermissionRequest**: ツール使用の承認待ち時に通知。10秒間未応答の場合のみ通知を送信する。
 
 ## ディレクトリ構成
 
@@ -13,7 +15,7 @@ ccpush/
 ├── .claude-plugin/
 │   └── plugin.json              # プラグインマニフェスト
 ├── hooks/
-│   └── hooks.json               # Stop hookの定義
+│   └── hooks.json               # Stop / PermissionRequest hookの定義
 ├── skills/
 │   ├── setup/
 │   │   └── SKILL.md             # /ccpush:setup — 認証情報の設定
@@ -51,8 +53,18 @@ ccpush/
 
 ## 通知スクリプト (scripts/notify.sh)
 
-- stdinからStop hookのJSONを受け取る
+- stdinからhook JSONを受け取る
+- `hook_event_name` でイベント種別を判別
 - `cwd` の `basename` でフォルダ名を取得
-- `last_assistant_message` の先頭100文字を切り出しメッセージに含める
 - `disabled_projects` に含まれるプロジェクトは通知をスキップ
 - エラー時はstderrに出力し、常にexit 0で終了
+
+### Stopイベント
+- `transcript_path` から最後のアシスタント応答テキストを取得（先頭100文字）
+- 即座にPushover通知を送信
+
+### PermissionRequestイベント
+- バックグラウンドプロセスをforkして即座にexit 0
+- バックグラウンド: `transcript_path` の行数を記録し、10秒sleep
+- 10秒後に行数が変化していなければ「承認待ちです」と通知
+- 行数が増えていれば既に操作済みなので通知スキップ

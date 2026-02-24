@@ -44,8 +44,64 @@ fi
 # フォルダ名を取得
 FOLDER_NAME=$(basename "$CWD")
 
-# transcript_pathから最後のアシスタントテキストを取得（先頭100文字）
+# イベント種別を取得
+HOOK_EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // empty' 2>/dev/null)
+
+# transcript_pathを取得
 TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
+
+# Pushover通知を送信する関数
+send_notification() {
+    local title="$1"
+    local message="$2"
+    local response
+    response=$(curl -s -o /dev/null -w "%{http_code}" \
+        --form-string "token=$APP_TOKEN" \
+        --form-string "user=$USER_KEY" \
+        --form-string "title=$title" \
+        --form-string "message=$message" \
+        https://api.pushover.net/1/messages.json)
+
+    if [ "$response" -ne 200 ]; then
+        echo "Error: Pushover API returned HTTP $response" >&2
+    fi
+}
+
+# PermissionRequest: バックグラウンドで10秒待機後に通知
+if [ "$HOOK_EVENT" = "PermissionRequest" ]; then
+    # ツール情報を取得
+    TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+    TOOL_INPUT_SUMMARY=$(echo "$INPUT" | jq -r '.tool_input // {} | to_entries | map(.key + ": " + (.value | tostring)) | join(", ")' 2>/dev/null)
+    TOOL_INPUT_SUMMARY=$(echo "$TOOL_INPUT_SUMMARY" | cut -c1-100)
+
+    (
+        # transcript_pathの現在の行数を記録
+        INITIAL_LINES=0
+        if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
+            INITIAL_LINES=$(wc -l < "$TRANSCRIPT_PATH" | tr -d ' ')
+        fi
+
+        # 10秒待機
+        sleep 10
+
+        # 行数を再チェック
+        CURRENT_LINES=0
+        if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
+            CURRENT_LINES=$(wc -l < "$TRANSCRIPT_PATH" | tr -d ' ')
+        fi
+
+        # 行数が変化していなければ通知（まだ承認待ち）
+        if [ "$INITIAL_LINES" -eq "$CURRENT_LINES" ]; then
+            MESSAGE="${TOOL_NAME}
+${TOOL_INPUT_SUMMARY}"
+            send_notification "【承認要求】${FOLDER_NAME}" "$MESSAGE"
+        fi
+    ) &
+    disown
+    exit 0
+fi
+
+# Stop: 従来通りの処理
 ASSISTANT_TEXT=""
 if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
     ASSISTANT_TEXT=$(grep '"type":"assistant"' "$TRANSCRIPT_PATH" | jq -rs '[.[] | (.message.content // [])[] | select(.type=="text") | .text] | last // "" | gsub("\\n+"; " ") | gsub("\\s+"; " ") | ltrimstr(" ") | .[0:100]' 2>/dev/null)
@@ -58,16 +114,6 @@ else
     MESSAGE="応答が完了しました"
 fi
 
-# Pushover APIにプッシュ通知を送信
-response=$(curl -s -o /dev/null -w "%{http_code}" \
-    --form-string "token=$APP_TOKEN" \
-    --form-string "user=$USER_KEY" \
-    --form-string "title=${FOLDER_NAME} : Claude Code" \
-    --form-string "message=$MESSAGE" \
-    https://api.pushover.net/1/messages.json)
-
-if [ "$response" -ne 200 ]; then
-    echo "Error: Pushover API returned HTTP $response" >&2
-fi
+send_notification "【作業完了】${FOLDER_NAME}" "$MESSAGE"
 
 exit 0
