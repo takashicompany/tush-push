@@ -44,15 +44,8 @@ fi
 # フォルダ名を取得
 FOLDER_NAME=$(basename "$CWD")
 
-# last_assistant_messageの先頭100文字を切り出し（jqでUnicode安全に処理）
-LAST_MESSAGE_TRIMMED=$(echo "$INPUT" | jq -r '(.last_assistant_message // "")[0:100]' 2>/dev/null)
-
 # メッセージを生成
-if [ -n "$LAST_MESSAGE_TRIMMED" ]; then
-    MESSAGE="<${FOLDER_NAME}> ${LAST_MESSAGE_TRIMMED}..."
-else
-    MESSAGE="<${FOLDER_NAME}> Claude Codeの応答が完了しました"
-fi
+MESSAGE="${FOLDER_NAME} の応答が完了しました"
 
 # Pushover APIにプッシュ通知を送信
 response=$(curl -s -o /dev/null -w "%{http_code}" \
