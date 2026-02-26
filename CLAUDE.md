@@ -1,4 +1,4 @@
-# ccpush
+# tush-push
 
 Claude Codeの応答完了時・承認待ち時にPushover経由でプッシュ通知を送るプラグイン。
 
@@ -11,18 +11,18 @@ Claude Codeプラグインとして動作し、以下の2つのイベントでPu
 ## ディレクトリ構成
 
 ```
-ccpush/
+tush-push/
 ├── .claude-plugin/
 │   └── plugin.json              # プラグインマニフェスト
 ├── hooks/
 │   └── hooks.json               # Stop / PermissionRequest hookの定義
 ├── skills/
 │   ├── setup/
-│   │   └── SKILL.md             # /ccpush:setup — 認証情報の設定
+│   │   └── SKILL.md             # /tush-push:setup — 認証情報の設定
 │   ├── disable/
-│   │   └── SKILL.md             # /ccpush:disable — 通知の無効化
+│   │   └── SKILL.md             # /tush-push:disable — 通知の無効化
 │   └── enable/
-│       └── SKILL.md             # /ccpush:enable — 通知の有効化
+│       └── SKILL.md             # /tush-push:enable — 通知の有効化
 ├── scripts/
 │   └── notify.sh                # 通知スクリプト
 ├── .env.example                 # 認証情報テンプレート（参考用）
@@ -34,7 +34,7 @@ ccpush/
 
 認証情報は以下の優先順で取得される:
 1. 環境変数 (`PUSHOVER_APP_TOKEN`, `PUSHOVER_USER_KEY`)
-2. 設定ファイル (`~/.config/ccpush/config.json`)
+2. 設定ファイル (`~/.config/tush-push/config.json`)
 
 設定ファイルのフォーマット:
 ```json
@@ -47,9 +47,9 @@ ccpush/
 
 ## スキル
 
-- `/ccpush:setup <app_token> <user_key>` — 認証情報を設定ファイルに保存
-- `/ccpush:disable` — 現在のプロジェクトの通知を無効化
-- `/ccpush:enable` — 現在のプロジェクトの通知を有効化
+- `/tush-push:setup <app_token> <user_key>` — 認証情報を設定ファイルに保存
+- `/tush-push:disable` — 現在のプロジェクトの通知を無効化
+- `/tush-push:enable` — 現在のプロジェクトの通知を有効化
 
 ## 通知スクリプト (scripts/notify.sh)
 

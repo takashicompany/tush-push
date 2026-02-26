@@ -4,7 +4,7 @@
 INPUT=$(cat)
 
 # 設定ファイルのパス
-CONFIG_FILE="$HOME/.config/ccpush/config.json"
+CONFIG_FILE="$HOME/.config/tush-push/config.json"
 
 # 認証情報の取得（環境変数 → config.json の順で優先）
 APP_TOKEN="${PUSHOVER_APP_TOKEN:-}"
@@ -21,7 +21,7 @@ fi
 
 # 認証情報が未設定ならエラーを出して終了
 if [ -z "$APP_TOKEN" ] || [ -z "$USER_KEY" ]; then
-    echo "Error: Pushover credentials not configured. Use /ccpush:setup to set up." >&2
+    echo "Error: Pushover credentials not configured. Use /tush-push:setup to set up." >&2
     exit 0
 fi
 

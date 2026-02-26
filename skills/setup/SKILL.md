@@ -5,16 +5,16 @@ argument-hint: <app_token> <user_key>
 disable-model-invocation: true
 ---
 
-# ccpush:setup
+# tush-push:setup
 
-Pushoverの認証情報を `~/.config/ccpush/config.json` に保存します。
+Pushoverの認証情報を `~/.config/tush-push/config.json` に保存します。
 
 ## 手順
 
 1. 引数からアプリトークン(`$0`)とユーザーキー(`$1`)を受け取る
 2. 両方の引数が指定されていない場合はエラーメッセージを表示して終了する
-3. `~/.config/ccpush/` ディレクトリが存在しなければ作成する
-4. `~/.config/ccpush/config.json` が既に存在する場合は読み込み、`pushover_app_token` と `pushover_user_key` のみを上書きする（`disabled_projects` 等の既存設定は維持する）
+3. `~/.config/tush-push/` ディレクトリが存在しなければ作成する
+4. `~/.config/tush-push/config.json` が既に存在する場合は読み込み、`pushover_app_token` と `pushover_user_key` のみを上書きする（`disabled_projects` 等の既存設定は維持する）
 5. 存在しない場合は新規に作成する:
    ```json
    {
@@ -27,7 +27,7 @@ Pushoverの認証情報を `~/.config/ccpush/config.json` に保存します。
 
 ## 実行方法
 
-Bashツールで `jq` を使って `~/.config/ccpush/config.json` を読み書きする。
+Bashツールで `jq` を使って `~/.config/tush-push/config.json` を読み書きする。
 
 ## 引数
 

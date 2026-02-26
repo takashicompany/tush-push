@@ -1,5 +1,5 @@
 {
-  "name": "ccpush",
+  "name": "tush-push",
   "version": "1.0.0",
   "description": "Claude Codeの応答完了時にPushover経由でプッシュ通知を送る"
 }
