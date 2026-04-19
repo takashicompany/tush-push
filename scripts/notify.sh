@@ -101,11 +101,8 @@ ${TOOL_INPUT_SUMMARY}"
     exit 0
 fi
 
-# Stop: 従来通りの処理
-ASSISTANT_TEXT=""
-if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
-    ASSISTANT_TEXT=$(grep '"type":"assistant"' "$TRANSCRIPT_PATH" | jq -rs '[.[] | (.message.content // [])[] | select(.type=="text") | .text] | last // "" | gsub("\\n+"; " ") | gsub("\\s+"; " ") | ltrimstr(" ") | .[0:100]' 2>/dev/null)
-fi
+# Stop: payload の last_assistant_message を使用
+ASSISTANT_TEXT=$(echo "$INPUT" | jq -r '.last_assistant_message // "" | gsub("\\s+"; " ") | ltrimstr(" ") | .[0:100]' 2>/dev/null)
 
 # メッセージを生成
 if [ -n "$ASSISTANT_TEXT" ]; then
