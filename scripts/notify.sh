@@ -3,8 +3,11 @@
 # stdinからJSONを読み取る
 INPUT=$(cat)
 
-# 設定ファイルのパス
+# 認証情報の設定ファイル
 CONFIG_FILE="$HOME/.config/tush-push/config.json"
+
+# メッセージテンプレートファイル
+GLOBAL_MESSAGES="$HOME/.config/tush-push/messages.json"
 
 # 認証情報の取得（環境変数 → config.json の順で優先）
 APP_TOKEN="${PUSHOVER_APP_TOKEN:-}"
@@ -50,6 +53,49 @@ HOOK_EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // empty' 2>/dev/null)
 # transcript_pathを取得
 TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
 
+# ホスト名を取得
+HOSTNAME_VAL=$(hostname -s 2>/dev/null || hostname)
+
+# 使用するテンプレートファイルを決定（ローカル → グローバル → デフォルト）
+LOCAL_MESSAGES="$CWD/.claude/tush-push/messages.json"
+MESSAGES_FILE=""
+if [ -f "$LOCAL_MESSAGES" ]; then
+    MESSAGES_FILE="$LOCAL_MESSAGES"
+elif [ -f "$GLOBAL_MESSAGES" ]; then
+    MESSAGES_FILE="$GLOBAL_MESSAGES"
+fi
+
+# テンプレートのキーから値を取得（イベント種別.フィールド形式）
+# 引数: $1 = event key (stop / permission_request), $2 = field (title / message), $3 = default
+get_template() {
+    local event="$1"
+    local field="$2"
+    local default="$3"
+    local value=""
+    if [ -n "$MESSAGES_FILE" ]; then
+        value=$(jq -r --arg e "$event" --arg f "$field" '.[$e][$f] // empty' "$MESSAGES_FILE" 2>/dev/null)
+    fi
+    if [ -z "$value" ]; then
+        value="$default"
+    fi
+    echo "$value"
+}
+
+# プレースホルダ展開
+# 引数: $1 = テンプレート文字列
+expand_placeholders() {
+    local template="$1"
+    local result="$template"
+    result="${result//\{project\}/$FOLDER_NAME}"
+    result="${result//\{cwd\}/$CWD}"
+    result="${result//\{response\}/$RESPONSE_TEXT}"
+    result="${result//\{hostname\}/$HOSTNAME_VAL}"
+    result="${result//\{event\}/$HOOK_EVENT}"
+    result="${result//\{tool_name\}/$TOOL_NAME}"
+    result="${result//\{tool_input\}/$TOOL_INPUT_SUMMARY}"
+    echo "$result"
+}
+
 # Pushover通知を送信する関数
 send_notification() {
     local title="$1"
@@ -67,12 +113,23 @@ send_notification() {
     fi
 }
 
+# プレースホルダ用変数の初期化
+RESPONSE_TEXT=""
+TOOL_NAME=""
+TOOL_INPUT_SUMMARY=""
+
 # PermissionRequest: バックグラウンドで10秒待機後に通知
 if [ "$HOOK_EVENT" = "PermissionRequest" ]; then
-    # ツール情報を取得
     TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
     TOOL_INPUT_SUMMARY=$(echo "$INPUT" | jq -r '.tool_input // {} | to_entries | map(.key + ": " + (.value | tostring)) | join(", ")' 2>/dev/null)
     TOOL_INPUT_SUMMARY=$(echo "$TOOL_INPUT_SUMMARY" | cut -c1-100)
+
+    TITLE_TPL=$(get_template "permission_request" "title" "【承認要求】{project}")
+    MESSAGE_TPL=$(get_template "permission_request" "message" "{tool_name}
+{tool_input}")
+
+    TITLE=$(expand_placeholders "$TITLE_TPL")
+    MESSAGE=$(expand_placeholders "$MESSAGE_TPL")
 
     (
         # transcript_pathの現在の行数を記録
@@ -92,9 +149,7 @@ if [ "$HOOK_EVENT" = "PermissionRequest" ]; then
 
         # 行数が変化していなければ通知（まだ承認待ち）
         if [ "$INITIAL_LINES" -eq "$CURRENT_LINES" ]; then
-            MESSAGE="${TOOL_NAME}
-${TOOL_INPUT_SUMMARY}"
-            send_notification "【承認要求】${FOLDER_NAME}" "$MESSAGE"
+            send_notification "$TITLE" "$MESSAGE"
         fi
     ) &
     disown
@@ -102,15 +157,17 @@ ${TOOL_INPUT_SUMMARY}"
 fi
 
 # Stop: payload の last_assistant_message を使用
-ASSISTANT_TEXT=$(echo "$INPUT" | jq -r '.last_assistant_message // "" | gsub("\\s+"; " ") | ltrimstr(" ") | .[0:100]' 2>/dev/null)
-
-# メッセージを生成
-if [ -n "$ASSISTANT_TEXT" ]; then
-    MESSAGE="$ASSISTANT_TEXT"
-else
-    MESSAGE="応答が完了しました"
+RESPONSE_TEXT=$(echo "$INPUT" | jq -r '.last_assistant_message // "" | gsub("\\s+"; " ") | ltrimstr(" ") | .[0:100]' 2>/dev/null)
+if [ -z "$RESPONSE_TEXT" ]; then
+    RESPONSE_TEXT="応答が完了しました"
 fi
 
-send_notification "【作業完了】${FOLDER_NAME}" "$MESSAGE"
+TITLE_TPL=$(get_template "stop" "title" "【作業完了】{project}")
+MESSAGE_TPL=$(get_template "stop" "message" "{response}")
+
+TITLE=$(expand_placeholders "$TITLE_TPL")
+MESSAGE=$(expand_placeholders "$MESSAGE_TPL")
+
+send_notification "$TITLE" "$MESSAGE"
 
 exit 0
