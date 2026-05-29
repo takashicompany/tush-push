@@ -21,8 +21,10 @@ tush-push/
 │   │   └── SKILL.md             # /tush-push:setup — 認証情報の設定
 │   ├── disable/
 │   │   └── SKILL.md             # /tush-push:disable — 通知の無効化
-│   └── enable/
-│       └── SKILL.md             # /tush-push:enable — 通知の有効化
+│   ├── enable/
+│   │   └── SKILL.md             # /tush-push:enable — 通知の有効化
+│   └── default/
+│       └── SKILL.md             # /tush-push:default — デフォルトモード切替
 ├── scripts/
 │   └── notify.sh                # 通知スクリプト
 ├── .env.example                 # 認証情報テンプレート（参考用）
@@ -42,15 +44,34 @@ tush-push/
 {
   "pushover_app_token": "xxx",
   "pushover_user_key": "yyy",
-  "disabled_projects": []
+  "default_enabled": true,
+  "disabled_projects": [],
+  "enabled_projects": []
 }
 ```
+
+## 通知可否の判定
+
+通知を送るかどうかは以下の優先順で決まる（上が優先）:
+
+1. **環境変数 `TUSH_PUSH`**（インスタンス単位の上書き・最優先）
+   - `on`/`1`/`true`/`yes`/`enable`/`enabled` → 必ず通知
+   - `off`/`0`/`false`/`no`/`disable`/`disabled` → 必ず黙る
+   - 未設定 → 下のロジックへ
+2. **`default_enabled`**（このPCのデフォルト。キーが無い／`true` なら基本ON、`false` なら基本OFF）
+   - 基本ON（**除外リスト方式**）: cwd が `disabled_projects` に含まれれば黙る、それ以外は通知
+   - 基本OFF（**許可リスト方式**）: cwd が `enabled_projects` に含まれれば通知、それ以外は黙る
+
+環境変数方式は headlenss などの起動ラッパーが「このtmux内のClaude Codeだけ通知ON」を実現するための汎用フック。tush-push 自体は特定ツールに依存しない（`TUSH_PUSH=on claude` のように誰でも使える）。
+
+> 注: jq の `//` 演算子は `false` を null 同様に扱うため、`default_enabled` の判定では `.default_enabled // true` を使わず明示的に `false` 判定している。
 
 ## スキル
 
 - `/tush-push:setup <app_token> <user_key>` — 認証情報を設定ファイルに保存
-- `/tush-push:disable` — 現在のプロジェクトの通知を無効化
-- `/tush-push:enable` — 現在のプロジェクトの通知を有効化
+- `/tush-push:disable` — 現在のプロジェクトの通知を無効化（モードに応じて編集リストが変わる）
+- `/tush-push:enable` — 現在のプロジェクトの通知を有効化（モードに応じて編集リストが変わる）
+- `/tush-push:default <on\|off>` — グローバルのデフォルトモードを切り替え
 
 ## メッセージテンプレート
 
@@ -98,7 +119,7 @@ tush-push/
 - stdinからhook JSONを受け取る
 - `hook_event_name` でイベント種別を判別
 - `cwd` の `basename` でフォルダ名を取得
-- `disabled_projects` に含まれるプロジェクトは通知をスキップ
+- 「通知可否の判定」（環境変数 `TUSH_PUSH` → `default_enabled` + プロジェクトリスト）に従い、抑制対象なら即 exit 0
 - エラー時はstderrに出力し、常にexit 0で終了
 
 ### Stopイベント
