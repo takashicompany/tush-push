@@ -34,14 +34,63 @@ if [ -z "$CWD" ]; then
     CWD="$PWD"
 fi
 
-# disabled_projectsのチェック
-if [ -f "$CONFIG_FILE" ]; then
-    DISABLED=$(jq -r --arg cwd "$CWD" '
-        .disabled_projects // [] | map(select(. == $cwd)) | length
-    ' "$CONFIG_FILE" 2>/dev/null)
-    if [ "$DISABLED" -gt 0 ] 2>/dev/null; then
-        exit 0
+# 通知可否の判定
+# 優先順位:
+#   1. 環境変数 TUSH_PUSH (on/off) があればそれで確定（インスタンス単位の上書き）
+#   2. なければ default_enabled に従う
+#        true  → cwd が disabled_projects に含まれなければ通知（除外リスト方式）
+#        false → cwd が enabled_projects に含まれていれば通知（許可リスト方式）
+
+# 真偽値を on/off/空 に正規化する
+normalize_bool() {
+    case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+        on|1|true|yes|enable|enabled) echo "on" ;;
+        off|0|false|no|disable|disabled) echo "off" ;;
+        *) echo "" ;;
+    esac
+}
+
+# config.json の指定キーの配列に CWD が含まれるか（含まれれば true=0）
+cwd_in_list() {
+    local key="$1"
+    [ -f "$CONFIG_FILE" ] || return 1
+    local cnt
+    cnt=$(jq -r --arg cwd "$CWD" --arg k "$key" \
+        '.[$k] // [] | map(select(. == $cwd)) | length' "$CONFIG_FILE" 2>/dev/null)
+    [ "$cnt" -gt 0 ] 2>/dev/null
+}
+
+# 通知すべきなら 0、抑制すべきなら 1 を返す
+should_notify() {
+    # 1. 環境変数による上書き（最優先）
+    local override
+    override=$(normalize_bool "${TUSH_PUSH:-}")
+    if [ "$override" = "on" ]; then return 0; fi
+    if [ "$override" = "off" ]; then return 1; fi
+
+    # 2. default_enabled に従う（省略時は true = 従来どおり基本ON）
+    # 注意: jq の `//` は false を null 同様に扱い false→デフォルト値に化けるため使わない。
+    # キー未設定(null)・true は "基本ON"、明示的な false のときだけ "基本OFF"。
+    local default_enabled="true"
+    if [ -f "$CONFIG_FILE" ]; then
+        if [ "$(jq -r '.default_enabled' "$CONFIG_FILE" 2>/dev/null)" = "false" ]; then
+            default_enabled="false"
+        fi
     fi
+
+    if [ "$default_enabled" = "true" ]; then
+        # 除外リスト方式: disabled_projects に入っていれば抑制
+        cwd_in_list "disabled_projects" && return 1
+        return 0
+    else
+        # 許可リスト方式: enabled_projects に入っているときだけ通知
+        cwd_in_list "enabled_projects" && return 0
+        return 1
+    fi
+}
+
+if ! should_notify; then
+    exit 0
 fi
 
 # フォルダ名を取得
