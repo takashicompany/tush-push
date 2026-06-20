@@ -98,7 +98,7 @@ FOLDER_NAME=$(basename "$CWD")
 
 # イベント種別を取得
 normalize_event() {
-    case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '_- ')" in
+    case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d ' _-')" in
         stop) echo "Stop" ;;
         permissionrequest) echo "PermissionRequest" ;;
         *) echo "" ;;
