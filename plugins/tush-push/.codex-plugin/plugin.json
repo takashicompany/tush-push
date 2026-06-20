@@ -1,0 +1,27 @@
+{
+  "name": "tush-push",
+  "version": "1.2.0",
+  "description": "Codexの応答完了時・承認待ち時にPushover経由でプッシュ通知を送る",
+  "author": {
+    "name": "takashicompany"
+  },
+  "keywords": [
+    "hooks",
+    "notification",
+    "pushover"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "tush-push",
+    "shortDescription": "Codexの応答完了時・承認待ち時にPushover通知を送る",
+    "longDescription": "Codex の Stop と PermissionRequest hook で Pushover 通知を送るプラグインです。応答完了時は即時通知し、承認待ち時は一定時間応答がない場合に通知します。",
+    "developerName": "takashicompany",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive"
+    ],
+    "defaultPrompt": [
+      "tush-push のPushover認証情報を設定してください。"
+    ]
+  }
+}

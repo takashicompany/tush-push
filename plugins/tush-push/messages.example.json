@@ -1,0 +1,10 @@
+{
+  "stop": {
+    "title": "【作業完了】{project}",
+    "message": "{response}"
+  },
+  "permission_request": {
+    "title": "【承認要求】{project}",
+    "message": "{tool_name}\n{tool_input}"
+  }
+}
