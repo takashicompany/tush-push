@@ -80,11 +80,18 @@ tush-push/
 ## メッセージテンプレート
 
 通知のタイトルと本文をプロジェクトごと・端末ごとにカスタマイズできる。
-Codexローカル、Claudeローカル、グローバルの順で、ファイル単位で先勝ち。
+実行元ごとのローカル設定、もう一方のローカル設定、グローバルの順で、ファイル単位で先勝ち。
 
 ### 探索順（**ファイル単位**で先勝ち）
+Codex実行時:
 1. Codexローカル: `<cwd>/.codex/tush-push/messages.json`
 2. Claudeローカル: `<cwd>/.claude/tush-push/messages.json`
+3. グローバル: `~/.config/tush-push/messages.json`
+4. デフォルト（notify.sh内のハードコード）
+
+Claude実行時:
+1. Claudeローカル: `<cwd>/.claude/tush-push/messages.json`
+2. Codexローカル: `<cwd>/.codex/tush-push/messages.json`
 3. グローバル: `~/.config/tush-push/messages.json`
 4. デフォルト（notify.sh内のハードコード）
 
@@ -122,7 +129,7 @@ Codexローカル、Claudeローカル、グローバルの順で、ファイル
 ## 通知スクリプト (scripts/notify.sh)
 
 - stdinからhook JSONを受け取る
-- `hook_event_name`、`hookEventName`、`event`、または hook 定義から渡される `TUSH_PUSH_HOOK_EVENT` でイベント種別を判別
+- `hook_event_name`、`hookEventName`、`event`、または hook 定義から渡される `TUSH_PUSH_HOOK_EVENT` でイベント種別を判別し、未知イベントは通知せず終了
 - `cwd`、`workdir`、`workspace.current_dir` のいずれかの `basename` でフォルダ名を取得
 - 「通知可否の判定」（環境変数 `TUSH_PUSH` → `default_enabled` + プロジェクトリスト）に従い、抑制対象なら即 exit 0
 - エラー時はstderrに出力し、常にexit 0で終了

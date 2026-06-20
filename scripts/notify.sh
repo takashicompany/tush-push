@@ -97,9 +97,21 @@ fi
 FOLDER_NAME=$(basename "$CWD")
 
 # イベント種別を取得
+normalize_event() {
+    case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d ' _-')" in
+        stop) echo "Stop" ;;
+        permissionrequest) echo "PermissionRequest" ;;
+        *) echo "" ;;
+    esac
+}
+
 HOOK_EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // .hookEventName // .event // empty' 2>/dev/null)
 if [ -z "$HOOK_EVENT" ]; then
     HOOK_EVENT="${TUSH_PUSH_HOOK_EVENT:-}"
+fi
+HOOK_EVENT=$(normalize_event "$HOOK_EVENT")
+if [ -z "$HOOK_EVENT" ]; then
+    exit 0
 fi
 
 # transcript_pathを取得
@@ -111,12 +123,26 @@ HOSTNAME_VAL=$(hostname -s 2>/dev/null || hostname)
 # 使用するテンプレートファイルを決定（ローカル → グローバル → デフォルト）
 LOCAL_CODEX_MESSAGES="$CWD/.codex/tush-push/messages.json"
 LOCAL_CLAUDE_MESSAGES="$CWD/.claude/tush-push/messages.json"
+RUNTIME="${TUSH_PUSH_RUNTIME:-}"
+if [ -z "$RUNTIME" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+    RUNTIME="claude"
+fi
+
 MESSAGES_FILE=""
-if [ -f "$LOCAL_CODEX_MESSAGES" ]; then
-    MESSAGES_FILE="$LOCAL_CODEX_MESSAGES"
-elif [ -f "$LOCAL_CLAUDE_MESSAGES" ]; then
-    MESSAGES_FILE="$LOCAL_CLAUDE_MESSAGES"
-elif [ -f "$GLOBAL_MESSAGES" ]; then
+if [ "$RUNTIME" = "claude" ]; then
+    if [ -f "$LOCAL_CLAUDE_MESSAGES" ]; then
+        MESSAGES_FILE="$LOCAL_CLAUDE_MESSAGES"
+    elif [ -f "$LOCAL_CODEX_MESSAGES" ]; then
+        MESSAGES_FILE="$LOCAL_CODEX_MESSAGES"
+    fi
+else
+    if [ -f "$LOCAL_CODEX_MESSAGES" ]; then
+        MESSAGES_FILE="$LOCAL_CODEX_MESSAGES"
+    elif [ -f "$LOCAL_CLAUDE_MESSAGES" ]; then
+        MESSAGES_FILE="$LOCAL_CLAUDE_MESSAGES"
+    fi
+fi
+if [ -z "$MESSAGES_FILE" ] && [ -f "$GLOBAL_MESSAGES" ]; then
     MESSAGES_FILE="$GLOBAL_MESSAGES"
 fi
 
