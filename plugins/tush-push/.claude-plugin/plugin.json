@@ -1,0 +1,5 @@
+{
+  "name": "tush-push",
+  "version": "1.2.0",
+  "description": "Claude Codeの応答完了時・承認待ち時にPushover経由でプッシュ通知を送る"
+}
