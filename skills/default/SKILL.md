@@ -2,7 +2,7 @@
 name: default
 description: 通知のグローバルなデフォルトモード（基本ON / 基本OFF）を切り替える
 argument-hint: <on|off>
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 # tush-push:default

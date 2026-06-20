@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/notify.sh"
+            "command": "sh -c 'if [ -n \"${CLAUDE_PLUGIN_ROOT:-}\" ] && [ -x \"$CLAUDE_PLUGIN_ROOT/scripts/notify.sh\" ]; then TUSH_PUSH_HOOK_EVENT=Stop exec \"$CLAUDE_PLUGIN_ROOT/scripts/notify.sh\"; fi; for d in \"${CODEX_HOME:-$HOME/.codex}\"/plugins/cache/*/tush-push/*; do if [ -x \"$d/scripts/notify.sh\" ]; then TUSH_PUSH_HOOK_EVENT=Stop exec \"$d/scripts/notify.sh\"; fi; done; echo \"tush-push notify.sh not found\" >&2; exit 0'"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/notify.sh"
+            "command": "sh -c 'if [ -n \"${CLAUDE_PLUGIN_ROOT:-}\" ] && [ -x \"$CLAUDE_PLUGIN_ROOT/scripts/notify.sh\" ]; then TUSH_PUSH_HOOK_EVENT=PermissionRequest exec \"$CLAUDE_PLUGIN_ROOT/scripts/notify.sh\"; fi; for d in \"${CODEX_HOME:-$HOME/.codex}\"/plugins/cache/*/tush-push/*; do if [ -x \"$d/scripts/notify.sh\" ]; then TUSH_PUSH_HOOK_EVENT=PermissionRequest exec \"$d/scripts/notify.sh\"; fi; done; echo \"tush-push notify.sh not found\" >&2; exit 0'"
           }
         ]
       }

@@ -1,10 +1,10 @@
 # tush-push
 
-Claude Codeの応答完了時・承認待ち時にPushover経由でプッシュ通知を送るプラグイン。
+Claude Code と Codex の応答完了時・承認待ち時にPushover経由でプッシュ通知を送るプラグイン。
 
 ## 概要
 
-Claude Codeプラグインとして動作し、以下の2つのイベントでPushover通知を送信する:
+Claude Code / Codex プラグインとして動作し、以下の2つのイベントでPushover通知を送信する:
 - **Stop**: 応答完了時に即座に通知。メッセージには返答の先頭100文字が含まれる。
 - **PermissionRequest**: ツール使用の承認待ち時に通知。10秒間未応答の場合のみ通知を送信する。
 
@@ -13,7 +13,11 @@ Claude Codeプラグインとして動作し、以下の2つのイベントでPu
 ```
 tush-push/
 ├── .claude-plugin/
-│   └── plugin.json              # プラグインマニフェスト
+│   └── plugin.json              # Claude Codeプラグインマニフェスト
+├── .codex-plugin/
+│   └── plugin.json              # Codexプラグインマニフェスト
+├── .agents/plugins/
+│   └── marketplace.json         # Codex personal marketplace定義
 ├── hooks/
 │   └── hooks.json               # Stop / PermissionRequest hookの定義
 ├── skills/
@@ -76,12 +80,13 @@ tush-push/
 ## メッセージテンプレート
 
 通知のタイトルと本文をプロジェクトごと・端末ごとにカスタマイズできる。
-2枚構成（ローカル / グローバル）で、Claude Code本体の設定と同様にローカル優先。
+Codexローカル、Claudeローカル、グローバルの順で、ファイル単位で先勝ち。
 
 ### 探索順（**ファイル単位**で先勝ち）
-1. ローカル: `<cwd>/.claude/tush-push/messages.json`
-2. グローバル: `~/.config/tush-push/messages.json`
-3. デフォルト（notify.sh内のハードコード）
+1. Codexローカル: `<cwd>/.codex/tush-push/messages.json`
+2. Claudeローカル: `<cwd>/.claude/tush-push/messages.json`
+3. グローバル: `~/.config/tush-push/messages.json`
+4. デフォルト（notify.sh内のハードコード）
 
 ローカルファイルが存在する場合、その内容のみが使われる（グローバルとフィールド単位のマージはしない）。
 
@@ -117,13 +122,13 @@ tush-push/
 ## 通知スクリプト (scripts/notify.sh)
 
 - stdinからhook JSONを受け取る
-- `hook_event_name` でイベント種別を判別
-- `cwd` の `basename` でフォルダ名を取得
+- `hook_event_name`、`hookEventName`、`event`、または hook 定義から渡される `TUSH_PUSH_HOOK_EVENT` でイベント種別を判別
+- `cwd`、`workdir`、`workspace.current_dir` のいずれかの `basename` でフォルダ名を取得
 - 「通知可否の判定」（環境変数 `TUSH_PUSH` → `default_enabled` + プロジェクトリスト）に従い、抑制対象なら即 exit 0
 - エラー時はstderrに出力し、常にexit 0で終了
 
 ### Stopイベント
-- `last_assistant_message` から応答テキストを取得（先頭100文字）→ `{response}`
+- `last_assistant_message`、`lastAssistantMessage`、`assistant_message` のいずれかから応答テキストを取得（先頭100文字）→ `{response}`
 - メッセージテンプレートを展開して即座にPushover通知を送信
 
 ### PermissionRequestイベント

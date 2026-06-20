@@ -29,7 +29,7 @@ if [ -z "$APP_TOKEN" ] || [ -z "$USER_KEY" ]; then
 fi
 
 # cwdの取得
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+CWD=$(echo "$INPUT" | jq -r '.cwd // .workdir // .workspace.current_dir // empty' 2>/dev/null)
 if [ -z "$CWD" ]; then
     CWD="$PWD"
 fi
@@ -97,19 +97,25 @@ fi
 FOLDER_NAME=$(basename "$CWD")
 
 # イベント種別を取得
-HOOK_EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // empty' 2>/dev/null)
+HOOK_EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // .hookEventName // .event // empty' 2>/dev/null)
+if [ -z "$HOOK_EVENT" ]; then
+    HOOK_EVENT="${TUSH_PUSH_HOOK_EVENT:-}"
+fi
 
 # transcript_pathを取得
-TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
+TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // .transcriptPath // empty' 2>/dev/null)
 
 # ホスト名を取得
 HOSTNAME_VAL=$(hostname -s 2>/dev/null || hostname)
 
 # 使用するテンプレートファイルを決定（ローカル → グローバル → デフォルト）
-LOCAL_MESSAGES="$CWD/.claude/tush-push/messages.json"
+LOCAL_CODEX_MESSAGES="$CWD/.codex/tush-push/messages.json"
+LOCAL_CLAUDE_MESSAGES="$CWD/.claude/tush-push/messages.json"
 MESSAGES_FILE=""
-if [ -f "$LOCAL_MESSAGES" ]; then
-    MESSAGES_FILE="$LOCAL_MESSAGES"
+if [ -f "$LOCAL_CODEX_MESSAGES" ]; then
+    MESSAGES_FILE="$LOCAL_CODEX_MESSAGES"
+elif [ -f "$LOCAL_CLAUDE_MESSAGES" ]; then
+    MESSAGES_FILE="$LOCAL_CLAUDE_MESSAGES"
 elif [ -f "$GLOBAL_MESSAGES" ]; then
     MESSAGES_FILE="$GLOBAL_MESSAGES"
 fi
@@ -169,8 +175,8 @@ TOOL_INPUT_SUMMARY=""
 
 # PermissionRequest: バックグラウンドで10秒待機後に通知
 if [ "$HOOK_EVENT" = "PermissionRequest" ]; then
-    TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
-    TOOL_INPUT_SUMMARY=$(echo "$INPUT" | jq -r '.tool_input // {} | to_entries | map(.key + ": " + (.value | tostring)) | join(", ")' 2>/dev/null)
+    TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // .toolName // empty' 2>/dev/null)
+    TOOL_INPUT_SUMMARY=$(echo "$INPUT" | jq -r '.tool_input // .toolInput // {} | to_entries | map(.key + ": " + (.value | tostring)) | join(", ")' 2>/dev/null)
     TOOL_INPUT_SUMMARY=$(echo "$TOOL_INPUT_SUMMARY" | cut -c1-100)
 
     TITLE_TPL=$(get_template "permission_request" "title" "【承認要求】{project}")
@@ -196,8 +202,9 @@ if [ "$HOOK_EVENT" = "PermissionRequest" ]; then
             CURRENT_LINES=$(wc -l < "$TRANSCRIPT_PATH" | tr -d ' ')
         fi
 
-        # 行数が変化していなければ通知（まだ承認待ち）
-        if [ "$INITIAL_LINES" -eq "$CURRENT_LINES" ]; then
+        # transcript_path がない場合は状態確認できないため通知する。
+        # ある場合は行数が変化していなければ通知（まだ承認待ち）。
+        if [ -z "$TRANSCRIPT_PATH" ] || [ "$INITIAL_LINES" -eq "$CURRENT_LINES" ]; then
             send_notification "$TITLE" "$MESSAGE"
         fi
     ) &
@@ -206,7 +213,7 @@ if [ "$HOOK_EVENT" = "PermissionRequest" ]; then
 fi
 
 # Stop: payload の last_assistant_message を使用
-RESPONSE_TEXT=$(echo "$INPUT" | jq -r '.last_assistant_message // "" | gsub("\\s+"; " ") | ltrimstr(" ") | .[0:100]' 2>/dev/null)
+RESPONSE_TEXT=$(echo "$INPUT" | jq -r '.last_assistant_message // .lastAssistantMessage // .assistant_message // "" | gsub("\\s+"; " ") | ltrimstr(" ") | .[0:100]' 2>/dev/null)
 if [ -z "$RESPONSE_TEXT" ]; then
     RESPONSE_TEXT="応答が完了しました"
 fi

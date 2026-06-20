@@ -1,7 +1,7 @@
 ---
 name: disable
 description: 現在のプロジェクトのPushover通知を無効化する
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 # tush-push:disable

@@ -2,7 +2,7 @@
 name: setup
 description: Pushoverの認証情報（アプリトークンとユーザーキー）を設定する
 argument-hint: <app_token> <user_key>
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 # tush-push:setup

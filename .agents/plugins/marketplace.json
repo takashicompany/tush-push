@@ -1,0 +1,20 @@
+{
+  "name": "takashicompany-tush-push",
+  "interface": {
+    "displayName": "takashicompany tush-push"
+  },
+  "plugins": [
+    {
+      "name": "tush-push",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
