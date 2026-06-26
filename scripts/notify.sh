@@ -43,14 +43,18 @@ normalize_bool() {
     esac
 }
 
-# config.json の指定キーの配列に CWD が含まれるか（含まれれば true=0）
+# config.json の指定キーの配列に CWD がマッチするか（shell glob対応）
 cwd_in_list() {
     local key="$1"
     [ -f "$CONFIG_FILE" ] || return 1
-    local cnt
-    cnt=$(jq -r --arg cwd "$CWD" --arg k "$key" \
-        '.[$k] // [] | map(select(. == $cwd)) | length' "$CONFIG_FILE" 2>/dev/null)
-    [ "$cnt" -gt 0 ] 2>/dev/null
+    local pattern
+    while IFS= read -r pattern; do
+        [ -n "$pattern" ] || continue
+        [[ "$CWD" == $pattern ]] && return 0
+    done <<EOF
+$(jq -r --arg k "$key" '.[$k] // [] | .[]' "$CONFIG_FILE" 2>/dev/null)
+EOF
+    return 1
 }
 
 # イベント種別を取得

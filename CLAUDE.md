@@ -87,8 +87,8 @@ tush-push/
    - `off`/`0`/`false`/`no`/`disable`/`disabled` → 必ず黙る
    - 未設定 → 下のロジックへ
 2. **`default_enabled`**（このPCのデフォルト。キーが無い／`true` なら基本ON、`false` なら基本OFF）
-   - 基本ON（**除外リスト方式**）: cwd が `disabled_projects` に含まれれば黙る、それ以外は次へ
-   - 基本OFF（**許可リスト方式**）: cwd が `enabled_projects` に含まれれば次へ、それ以外は黙る
+   - 基本ON（**除外リスト方式**）: cwd が `disabled_projects` のいずれかのglobにマッチすれば黙る、それ以外は次へ
+   - 基本OFF（**許可リスト方式**）: cwd が `enabled_projects` のいずれかのglobにマッチすれば次へ、それ以外は黙る
 3. **`notify_runtime_events.<runtime>.<event>`**（実行元×イベントの個別設定）
    - 例: `notify_runtime_events.codex.permission_request: false` なら Codex の承認要求だけ黙る
    - 最も具体的な設定なので、`notify_events` / `notify_runtimes` より優先される
@@ -98,6 +98,8 @@ tush-push/
    - `codex` / `claude` のどちらかを `false` にすると、その実行元を黙らせる
 
 runtime/event 別のキーは未設定なら通知ONとして扱う。`notify_events` と `notify_runtimes` はどちらかが `false` なら抑制される。特定の組み合わせだけ例外にしたい場合は `notify_runtime_events` に明示する。
+
+`disabled_projects` / `enabled_projects` の各値はshell globとして扱う。例: `/home/sato/works/*`、`*/tmp-*`。glob記号を含まない既存の絶対パスは従来どおり完全一致として動く。
 
 環境変数方式は headlenss などの起動ラッパーが「このtmux内のClaude Codeだけ通知ON」を実現するための汎用フック。tush-push 自体は特定ツールに依存しない（`TUSH_PUSH=on claude` のように誰でも使える）。
 
