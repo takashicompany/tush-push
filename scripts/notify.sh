@@ -34,13 +34,6 @@ if [ -z "$CWD" ]; then
     CWD="$PWD"
 fi
 
-# 通知可否の判定
-# 優先順位:
-#   1. 環境変数 TUSH_PUSH (on/off) があればそれで確定（インスタンス単位の上書き）
-#   2. なければ default_enabled に従う
-#        true  → cwd が disabled_projects に含まれなければ通知（除外リスト方式）
-#        false → cwd が enabled_projects に含まれていれば通知（許可リスト方式）
-
 # 真偽値を on/off/空 に正規化する
 normalize_bool() {
     case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
@@ -60,15 +53,50 @@ cwd_in_list() {
     [ "$cnt" -gt 0 ] 2>/dev/null
 }
 
-# 通知すべきなら 0、抑制すべきなら 1 を返す
-should_notify() {
-    # 1. 環境変数による上書き（最優先）
+# イベント種別を取得
+normalize_event() {
+    case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d ' _-')" in
+        stop) echo "Stop" ;;
+        permissionrequest) echo "PermissionRequest" ;;
+        *) echo "" ;;
+    esac
+}
+
+event_config_key() {
+    case "$1" in
+        Stop) echo "stop" ;;
+        PermissionRequest) echo "permission_request" ;;
+        *) echo "" ;;
+    esac
+}
+
+normalize_runtime() {
+    case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+        codex) echo "codex" ;;
+        claude|claudecode|claude_code) echo "claude" ;;
+        *) echo "" ;;
+    esac
+}
+
+# config.json の指定パスにある真偽値を on/off/空 に正規化して返す。
+# jq の `//` は false を null 同様に扱うため使わない。
+config_bool() {
+    local filter="$1"
+    [ -f "$CONFIG_FILE" ] || return 0
+    local value
+    value=$(jq -r "$filter | if . == null then \"\" else . end" "$CONFIG_FILE" 2>/dev/null)
+    normalize_bool "$value"
+}
+
+# プロジェクト全体の通知可否。通知すべきなら 0、抑制すべきなら 1。
+should_notify_project() {
+    # 環境変数による上書き（最優先）
     local override
     override=$(normalize_bool "${TUSH_PUSH:-}")
     if [ "$override" = "on" ]; then return 0; fi
     if [ "$override" = "off" ]; then return 1; fi
 
-    # 2. default_enabled に従う（省略時は true = 従来どおり基本ON）
+    # default_enabled に従う（省略時は true = 従来どおり基本ON）
     # 注意: jq の `//` は false を null 同様に扱い false→デフォルト値に化けるため使わない。
     # キー未設定(null)・true は "基本ON"、明示的な false のときだけ "基本OFF"。
     local default_enabled="true"
@@ -89,22 +117,6 @@ should_notify() {
     fi
 }
 
-if ! should_notify; then
-    exit 0
-fi
-
-# フォルダ名を取得
-FOLDER_NAME=$(basename "$CWD")
-
-# イベント種別を取得
-normalize_event() {
-    case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d ' _-')" in
-        stop) echo "Stop" ;;
-        permissionrequest) echo "PermissionRequest" ;;
-        *) echo "" ;;
-    esac
-}
-
 HOOK_EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // .hookEventName // .event // empty' 2>/dev/null)
 if [ -z "$HOOK_EVENT" ]; then
     HOOK_EVENT="${TUSH_PUSH_HOOK_EVENT:-}"
@@ -113,6 +125,43 @@ HOOK_EVENT=$(normalize_event "$HOOK_EVENT")
 if [ -z "$HOOK_EVENT" ]; then
     exit 0
 fi
+EVENT_KEY=$(event_config_key "$HOOK_EVENT")
+
+RUNTIME="${TUSH_PUSH_RUNTIME:-}"
+if [ -z "$RUNTIME" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+    RUNTIME="claude"
+fi
+RUNTIME=$(normalize_runtime "$RUNTIME")
+if [ -z "$RUNTIME" ]; then
+    RUNTIME="codex"
+fi
+
+# runtime/event 別の通知可否。未設定なら許可、false/off なら抑制。
+# notify_runtime_events.<runtime>.<event> は最も具体的な上書きとして扱う。
+should_notify_runtime_event() {
+    local runtime_event_setting event_setting runtime_setting
+    runtime_event_setting=$(config_bool ".notify_runtime_events.$RUNTIME.$EVENT_KEY")
+    if [ "$runtime_event_setting" = "on" ]; then return 0; fi
+    if [ "$runtime_event_setting" = "off" ]; then return 1; fi
+
+    event_setting=$(config_bool ".notify_events.$EVENT_KEY")
+    if [ "$event_setting" = "off" ]; then return 1; fi
+
+    runtime_setting=$(config_bool ".notify_runtimes.$RUNTIME")
+    if [ "$runtime_setting" = "off" ]; then return 1; fi
+
+    return 0
+}
+
+if ! should_notify_project; then
+    exit 0
+fi
+if ! should_notify_runtime_event; then
+    exit 0
+fi
+
+# フォルダ名を取得
+FOLDER_NAME=$(basename "$CWD")
 
 # transcript_pathを取得
 TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // .transcriptPath // empty' 2>/dev/null)
@@ -123,10 +172,6 @@ HOSTNAME_VAL=$(hostname -s 2>/dev/null || hostname)
 # 使用するテンプレートファイルを決定（ローカル → グローバル → デフォルト）
 LOCAL_CODEX_MESSAGES="$CWD/.codex/tush-push/messages.json"
 LOCAL_CLAUDE_MESSAGES="$CWD/.claude/tush-push/messages.json"
-RUNTIME="${TUSH_PUSH_RUNTIME:-}"
-if [ -z "$RUNTIME" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
-    RUNTIME="claude"
-fi
 
 MESSAGES_FILE=""
 if [ "$RUNTIME" = "claude" ]; then
