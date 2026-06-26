@@ -54,9 +54,29 @@ tush-push/
   "pushover_user_key": "yyy",
   "default_enabled": true,
   "disabled_projects": [],
-  "enabled_projects": []
+  "enabled_projects": [],
+  "notify_runtimes": {
+    "codex": true,
+    "claude": true
+  },
+  "notify_events": {
+    "stop": true,
+    "permission_request": true
+  },
+  "notify_runtime_events": {
+    "codex": {
+      "stop": true,
+      "permission_request": false
+    },
+    "claude": {
+      "stop": true,
+      "permission_request": true
+    }
+  }
 }
 ```
+
+`notify_runtimes`、`notify_events`、`notify_runtime_events` は任意。未設定のキーは従来どおり通知ONとして扱う。
 
 ## 通知可否の判定
 
@@ -67,8 +87,17 @@ tush-push/
    - `off`/`0`/`false`/`no`/`disable`/`disabled` → 必ず黙る
    - 未設定 → 下のロジックへ
 2. **`default_enabled`**（このPCのデフォルト。キーが無い／`true` なら基本ON、`false` なら基本OFF）
-   - 基本ON（**除外リスト方式**）: cwd が `disabled_projects` に含まれれば黙る、それ以外は通知
-   - 基本OFF（**許可リスト方式**）: cwd が `enabled_projects` に含まれれば通知、それ以外は黙る
+   - 基本ON（**除外リスト方式**）: cwd が `disabled_projects` に含まれれば黙る、それ以外は次へ
+   - 基本OFF（**許可リスト方式**）: cwd が `enabled_projects` に含まれれば次へ、それ以外は黙る
+3. **`notify_runtime_events.<runtime>.<event>`**（実行元×イベントの個別設定）
+   - 例: `notify_runtime_events.codex.permission_request: false` なら Codex の承認要求だけ黙る
+   - 最も具体的な設定なので、`notify_events` / `notify_runtimes` より優先される
+4. **`notify_events.<event>`**（イベント別設定）
+   - `stop` / `permission_request` のどちらかを `false` にすると、そのイベントを黙らせる
+5. **`notify_runtimes.<runtime>`**（実行元別設定）
+   - `codex` / `claude` のどちらかを `false` にすると、その実行元を黙らせる
+
+runtime/event 別のキーは未設定なら通知ONとして扱う。`notify_events` と `notify_runtimes` はどちらかが `false` なら抑制される。特定の組み合わせだけ例外にしたい場合は `notify_runtime_events` に明示する。
 
 環境変数方式は headlenss などの起動ラッパーが「このtmux内のClaude Codeだけ通知ON」を実現するための汎用フック。tush-push 自体は特定ツールに依存しない（`TUSH_PUSH=on claude` のように誰でも使える）。
 
@@ -143,7 +172,7 @@ Claude実行時:
 - stdinからhook JSONを受け取る
 - `hook_event_name`、`hookEventName`、`event`、または hook 定義から渡される `TUSH_PUSH_HOOK_EVENT` でイベント種別を判別し、未知イベントは通知せず終了
 - `cwd`、`workdir`、`workspace.current_dir` のいずれかの `basename` でフォルダ名を取得
-- 「通知可否の判定」（環境変数 `TUSH_PUSH` → `default_enabled` + プロジェクトリスト）に従い、抑制対象なら即 exit 0
+- 「通知可否の判定」（環境変数 `TUSH_PUSH` → `default_enabled` + プロジェクトリスト → runtime/event 別設定）に従い、抑制対象なら即 exit 0
 - エラー時はstderrに出力し、常にexit 0で終了
 
 ### Stopイベント
