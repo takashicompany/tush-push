@@ -94,11 +94,13 @@ config_bool() {
 
 # プロジェクト全体の通知可否。通知すべきなら 0、抑制すべきなら 1。
 should_notify_project() {
-    # 環境変数による上書き（最優先）
     local override
     override=$(normalize_bool "${TUSH_PUSH:-}")
-    if [ "$override" = "on" ]; then return 0; fi
     if [ "$override" = "off" ]; then return 1; fi
+
+    # 除外リストは TUSH_PUSH=on より優先する。
+    cwd_in_list "disabled_projects" && return 1
+    if [ "$override" = "on" ]; then return 0; fi
 
     # default_enabled に従う（省略時は true = 従来どおり基本ON）
     # 注意: jq の `//` は false を null 同様に扱い false→デフォルト値に化けるため使わない。
@@ -111,8 +113,6 @@ should_notify_project() {
     fi
 
     if [ "$default_enabled" = "true" ]; then
-        # 除外リスト方式: disabled_projects に入っていれば抑制
-        cwd_in_list "disabled_projects" && return 1
         return 0
     else
         # 許可リスト方式: enabled_projects に入っているときだけ通知
