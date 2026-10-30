@@ -76,7 +76,17 @@ tush-push/
 }
 ```
 
-`notify_runtimes`、`notify_events`、`notify_runtime_events` は任意。未設定のキーは従来どおり通知ONとして扱う。
+`api_url` は任意（「送り先」を参照）。`notify_runtimes`、`notify_events`、`notify_runtime_events` は任意。未設定のキーは従来どおり通知ONとして扱う。
+
+## 送り先
+
+既定は Pushover（`https://api.pushover.net/1/messages.json`）。Pushover と同じ形式で受け取れるサーバー（callsheet 等）に送る場合は、以下の優先順で送り先を指定する:
+1. 環境変数 `TUSH_PUSH_API_URL`
+2. 設定ファイルの `api_url`（例: `"api_url": "https://example.ts.net:8792/1/messages.json"`）
+
+Pushover 以外の送り先では:
+- 認証情報（アプリトークン・ユーザーキー）が無くても送る
+- 実行元（`claude` / `codex`）を `source` として付けて送る
 
 ## 通知可否の判定
 
