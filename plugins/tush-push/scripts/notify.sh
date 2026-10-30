@@ -22,8 +22,19 @@ if [ -f "$CONFIG_FILE" ]; then
     fi
 fi
 
-# 認証情報が未設定ならエラーを出して終了
-if [ -z "$APP_TOKEN" ] || [ -z "$USER_KEY" ]; then
+# 送り先（環境変数 → config.json → Pushover の順で優先）
+# Pushover と同じ形式で受け取れるサーバー（callsheet 等）に送るときに指定する。
+PUSHOVER_API_URL_DEFAULT="https://api.pushover.net/1/messages.json"
+API_URL="${TUSH_PUSH_API_URL:-}"
+if [ -z "$API_URL" ] && [ -f "$CONFIG_FILE" ]; then
+    API_URL=$(jq -r '.api_url // empty' "$CONFIG_FILE" 2>/dev/null)
+fi
+if [ -z "$API_URL" ]; then
+    API_URL="$PUSHOVER_API_URL_DEFAULT"
+fi
+
+# 認証情報が未設定ならエラーを出して終了（Pushover 以外の送り先では不要）
+if [ "$API_URL" = "$PUSHOVER_API_URL_DEFAULT" ] && { [ -z "$APP_TOKEN" ] || [ -z "$USER_KEY" ]; }; then
     echo "Error: Pushover credentials not configured. Use /tush-push:setup to set up." >&2
     exit 0
 fi
@@ -231,15 +242,21 @@ send_notification() {
     local title="$1"
     local message="$2"
     local response
-    response=$(curl -s -o /dev/null -w "%{http_code}" \
+    # Pushover 以外の送り先には、実行元（claude / codex）を source として付ける
+    local extra=()
+    if [ "$API_URL" != "$PUSHOVER_API_URL_DEFAULT" ]; then
+        extra=(--form-string "source=$RUNTIME")
+    fi
+    response=$(curl -s -o /dev/null -w "%{http_code}" -m 15 \
         --form-string "token=$APP_TOKEN" \
         --form-string "user=$USER_KEY" \
         --form-string "title=$title" \
         --form-string "message=$message" \
-        https://api.pushover.net/1/messages.json)
+        "${extra[@]}" \
+        "$API_URL")
 
     if [ "$response" -ne 200 ]; then
-        echo "Error: Pushover API returned HTTP $response" >&2
+        echo "Error: $API_URL returned HTTP $response" >&2
     fi
 }
 
