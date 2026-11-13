@@ -3,6 +3,42 @@
 # stdinからJSONを読み取る
 INPUT=$(cat)
 
+# コマンドとして起動された Codex（`codex exec`。画面を持たない使い捨ての実行）からの呼び出しは通知しない。
+# Claude やスクリプトが画像生成などで `codex exec` を起動すると、1回終わるごとに Stop が来て
+# 通知が大量に届いてしまうため。フックを起動した Codex は祖先プロセスにいるので、数段さかのぼって見る。
+is_codex_exec_ancestor() {
+    local pid=$PPID depth=0 args found_codex i w
+    while [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null && [ $depth -lt 8 ]; do
+        args=$(ps -o args= -p "$pid" 2>/dev/null) || return 1
+        # 実行ファイル名（先頭の語。node / sh 経由ならその次の語）が codex で、
+        # その後の - で始まらない最初の語が exec / e なら codex exec。
+        # 引数の途中に「codex exec」という文字があるだけのプロセスは対象にしない
+        found_codex=0
+        i=0
+        for w in $args; do
+            i=$((i + 1))
+            if [ $found_codex -eq 1 ]; then
+                case "$w" in
+                    -*) continue ;;
+                    exec|e) return 0 ;;
+                    *) break ;;
+                esac
+            fi
+            case "${w##*/}" in
+                codex) found_codex=1 ;;
+                node|bash|sh|zsh) [ $i -eq 1 ] || break ;;
+                *) break ;;
+            esac
+        done
+        pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+        depth=$((depth + 1))
+    done
+    return 1
+}
+if is_codex_exec_ancestor; then
+    exit 0
+fi
+
 # 認証情報の設定ファイル
 CONFIG_FILE="$HOME/.config/tush-push/config.json"
 
